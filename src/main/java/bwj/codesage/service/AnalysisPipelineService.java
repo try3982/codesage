@@ -1,6 +1,7 @@
 package bwj.codesage.service;
 
 import bwj.codesage.client.GitHubClient;
+import bwj.codesage.exception.QuotaExceededException;
 import bwj.codesage.domain.entity.AnalysisJob;
 import bwj.codesage.domain.entity.AnalysisResult;
 import bwj.codesage.domain.entity.AnalysisSummary;
@@ -89,24 +90,33 @@ public class AnalysisPipelineService {
 
             // Step 3: Batch analyze — BATCH_SIZE files per Gemini call
             List<AnalysisResult> allResults = new ArrayList<>();
+            int consecutiveRateLimitFailures = 0;
 
             for (int i = 0; i < fileContents.size(); i += BATCH_SIZE) {
                 List<String[]> batch = fileContents.subList(i, Math.min(i + BATCH_SIZE, fileContents.size()));
+                int batchNum = (i / BATCH_SIZE) + 1;
+                int totalBatches = (int) Math.ceil(fileContents.size() / (double) BATCH_SIZE);
 
                 jobProgressService.updateProgress(job.getId(), i, batch.get(0)[0]);
 
                 try {
                     List<AnalysisResult> batchResults = llmAnalysisService.batchAnalyze(job, batch);
                     allResults.addAll(batchResults);
+                    consecutiveRateLimitFailures = 0;
                     log.info("Job {} - batch {}/{} done, {} issues found so far",
-                            jobId, (i / BATCH_SIZE) + 1, (int) Math.ceil(fileContents.size() / (double) BATCH_SIZE), allResults.size());
+                            jobId, batchNum, totalBatches, allResults.size());
                 } catch (Exception e) {
-                    log.warn("Batch analysis failed (files {}-{}): {}", i, i + batch.size(), e.getMessage());
+                    log.warn("Batch {}/{} failed: {}", batchNum, totalBatches, e.getMessage());
+                    if (e.getMessage() != null && e.getMessage().contains("429")) {
+                        consecutiveRateLimitFailures++;
+                        if (consecutiveRateLimitFailures >= 2) {
+                            throw new QuotaExceededException();
+                        }
+                    }
                 }
 
                 jobProgressService.updateProgress(job.getId(), Math.min(i + BATCH_SIZE, fileContents.size()), null);
 
-                // Rate limit delay only between batches
                 if (i + BATCH_SIZE < fileContents.size()) {
                     Thread.sleep(rateLimitDelayMs);
                 }
@@ -122,6 +132,10 @@ public class AnalysisPipelineService {
             log.info("Job {} completed — {} issues found in {} batches",
                     jobId, allResults.size(), (int) Math.ceil(fileContents.size() / (double) BATCH_SIZE));
 
+        } catch (QuotaExceededException e) {
+            log.warn("Job {} failed: Gemini API quota exceeded", jobId);
+            job.markFailed("QUOTA_EXCEEDED");
+            jobRepository.save(job);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             job.markFailed("Interrupted");
