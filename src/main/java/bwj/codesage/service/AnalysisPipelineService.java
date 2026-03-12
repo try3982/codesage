@@ -53,7 +53,6 @@ public class AnalysisPipelineService {
     private long rateLimitDelayMs;
 
     @Async
-    @Transactional
     public void runAnalysis(UUID jobId) {
         AnalysisJob job = jobRepository.findById(jobId)
                 .orElseThrow(() -> new IllegalArgumentException("Job not found: " + jobId));
