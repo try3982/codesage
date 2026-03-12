@@ -24,7 +24,7 @@ public class GeminiClient {
     private final String embeddingModel;
     private final String chatModel;
 
-    private static final int[] RETRY_DELAYS_MS = {10000, 30000, 60000};
+    private static final int[] RETRY_DELAYS_MS = {3000, 6000};
 
     public GeminiClient(
             WebClient.Builder webClientBuilder,
@@ -151,7 +151,7 @@ public class GeminiClient {
                 }
             }
         }
-        throw new GeminiException("Gemini chat failed after " + RETRY_DELAYS_MS.length + " retries");
+        throw new GeminiException("429: Gemini chat failed after " + RETRY_DELAYS_MS.length + " retries");
     }
 
     private static final String INTERVIEW_SYSTEM_PROMPT = """

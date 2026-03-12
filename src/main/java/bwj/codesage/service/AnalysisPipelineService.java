@@ -109,7 +109,7 @@ public class AnalysisPipelineService {
                     log.warn("Batch {}/{} failed: {}", batchNum, totalBatches, e.getMessage());
                     if (e.getMessage() != null && e.getMessage().contains("429")) {
                         consecutiveRateLimitFailures++;
-                        if (consecutiveRateLimitFailures >= 2) {
+                        if (consecutiveRateLimitFailures >= 1) {
                             throw new QuotaExceededException();
                         }
                     }
