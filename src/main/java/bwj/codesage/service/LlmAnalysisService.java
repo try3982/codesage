@@ -48,7 +48,7 @@ public class LlmAnalysisService {
     public List<AnalysisResult> analyzeChunks(AnalysisJob job, String codeContext, String filePath) {
         String userPrompt = String.format("""
             Analyze this code from file: %s
-            
+
             ```
             %s
             ```
@@ -59,6 +59,28 @@ public class LlmAnalysisService {
             return parseResults(job, response);
         } catch (Exception e) {
             log.error("LLM analysis failed for {}: {}", filePath, e.getMessage());
+            return List.of();
+        }
+    }
+
+    /**
+     * 여러 파일을 한 번의 API 호출로 분석합니다 (배치 처리).
+     * @param fileContents List of [filePath, content]
+     */
+    public List<AnalysisResult> batchAnalyze(AnalysisJob job, List<String[]> fileContents) {
+        StringBuilder sb = new StringBuilder();
+        for (String[] fc : fileContents) {
+            sb.append("=== FILE: ").append(fc[0]).append(" ===\n");
+            sb.append(truncate(fc[1], 3000)).append("\n\n");
+        }
+
+        String userPrompt = "Analyze these " + fileContents.size() + " files and return ALL issues found:\n\n" + sb;
+
+        try {
+            String response = geminiClient.chat(SYSTEM_PROMPT, userPrompt);
+            return parseResults(job, response);
+        } catch (Exception e) {
+            log.error("Batch LLM analysis failed: {}", e.getMessage());
             return List.of();
         }
     }

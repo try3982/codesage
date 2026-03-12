@@ -1,15 +1,12 @@
 package bwj.codesage.service;
 
 import bwj.codesage.client.GitHubClient;
-import bwj.codesage.client.GeminiClient;
 import bwj.codesage.domain.entity.AnalysisJob;
 import bwj.codesage.domain.entity.AnalysisResult;
 import bwj.codesage.domain.entity.AnalysisSummary;
-import bwj.codesage.domain.entity.CodeChunk;
 import bwj.codesage.repository.AnalysisJobRepository;
 import bwj.codesage.repository.AnalysisResultRepository;
 import bwj.codesage.repository.AnalysisSummaryRepository;
-import bwj.codesage.repository.CodeChunkRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +19,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -31,14 +27,12 @@ import java.util.UUID;
 public class AnalysisPipelineService {
 
     private final GitHubClient gitHubClient;
-    private final GeminiClient geminiClient;
     private final CodeChunkingService chunkingService;
     private final LlmAnalysisService llmAnalysisService;
 
     private final AnalysisJobRepository jobRepository;
     private final AnalysisResultRepository resultRepository;
     private final AnalysisSummaryRepository summaryRepository;
-    private final CodeChunkRepository chunkRepository;
     private final JobProgressService jobProgressService;
 
     private final ObjectMapper objectMapper;
@@ -51,6 +45,8 @@ public class AnalysisPipelineService {
 
     @Value("${gemini.rate-limit-delay-ms:500}")
     private long rateLimitDelayMs;
+
+    private static final int BATCH_SIZE = 5;
 
     @Async
     public void runAnalysis(UUID jobId) {
@@ -68,120 +64,72 @@ public class AnalysisPipelineService {
                     job.getRepoOwner(), job.getRepoName(), job.getCommitHash()
             );
 
-            List<String> supportedFiles = allFiles.stream()
+            List<String> targetFiles = allFiles.stream()
                     .filter(chunkingService::isSupportedFile)
                     .sorted(Comparator.comparingInt(chunkingService::getFilePriority))
+                    .limit(maxFiles)
                     .toList();
 
-            List<String> targetFiles = supportedFiles.stream().limit(maxFiles).toList();
-            int skipped = supportedFiles.size() - targetFiles.size();
-
+            int skipped = (int) allFiles.stream().filter(chunkingService::isSupportedFile).count() - targetFiles.size();
             job.setTotalFiles(targetFiles.size());
             job.setSkippedFiles(skipped);
-            if (skipped > 0) {
-                log.info("Job {} - {} files skipped (limit: {})", jobId, skipped, maxFiles);
-            }
             jobRepository.save(job);
 
-            log.info("Job {} - analyzing {} files", jobId, targetFiles.size());
+            log.info("Job {} - fetching {} file contents", jobId, targetFiles.size());
 
-            // Step 2: Process each file
+            // Step 2: Fetch all file contents (no rate limit needed — GitHub API is fast)
+            List<String[]> fileContents = new ArrayList<>();
+            for (String filePath : targetFiles) {
+                gitHubClient.getFileContent(job.getRepoOwner(), job.getRepoName(), job.getCommitHash(), filePath)
+                        .filter(c -> c.length() <= maxFileSizeKb * 1024)
+                        .ifPresent(c -> fileContents.add(new String[]{filePath, c}));
+            }
+
+            log.info("Job {} - analyzing {} files in batches of {}", jobId, fileContents.size(), BATCH_SIZE);
+
+            // Step 3: Batch analyze — BATCH_SIZE files per Gemini call
             List<AnalysisResult> allResults = new ArrayList<>();
 
-            for (int i = 0; i < targetFiles.size(); i++) {
-                String filePath = targetFiles.get(i);
+            for (int i = 0; i < fileContents.size(); i += BATCH_SIZE) {
+                List<String[]> batch = fileContents.subList(i, Math.min(i + BATCH_SIZE, fileContents.size()));
+
+                jobProgressService.updateProgress(job.getId(), i, batch.get(0)[0]);
+
                 try {
-                    // 분석 시작 전 현재 파일명 즉시 커밋 (REQUIRES_NEW)
-                    jobProgressService.updateProgress(job.getId(), i, filePath);
-
-                    processFile(job, filePath, allResults);
-
-                    // 분석 완료 후 진행 카운트 즉시 커밋 (REQUIRES_NEW)
-                    jobProgressService.updateProgress(job.getId(), i + 1, null);
-
-                    Thread.sleep(rateLimitDelayMs);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
+                    List<AnalysisResult> batchResults = llmAnalysisService.batchAnalyze(job, batch);
+                    allResults.addAll(batchResults);
+                    log.info("Job {} - batch {}/{} done, {} issues found so far",
+                            jobId, (i / BATCH_SIZE) + 1, (int) Math.ceil(fileContents.size() / (double) BATCH_SIZE), allResults.size());
                 } catch (Exception e) {
-                    log.warn("Failed to process file {}: {}", filePath, e.getMessage());
+                    log.warn("Batch analysis failed (files {}-{}): {}", i, i + batch.size(), e.getMessage());
+                }
+
+                jobProgressService.updateProgress(job.getId(), Math.min(i + BATCH_SIZE, fileContents.size()), null);
+
+                // Rate limit delay only between batches
+                if (i + BATCH_SIZE < fileContents.size()) {
+                    Thread.sleep(rateLimitDelayMs);
                 }
             }
 
-            // Step 3: Save all results
+            // Step 4: Save results + summary
             resultRepository.saveAll(allResults);
-
-            // Step 4: Generate summary
             generateAndSaveSummary(job, allResults);
 
-            // Step 5: Mark done
             job.markDone();
             jobRepository.save(job);
 
-            log.info("Job {} completed with {} issues found", jobId, allResults.size());
+            log.info("Job {} completed — {} issues found in {} batches",
+                    jobId, allResults.size(), (int) Math.ceil(fileContents.size() / (double) BATCH_SIZE));
 
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            job.markFailed("Interrupted");
+            jobRepository.save(job);
         } catch (Exception e) {
             log.error("Analysis pipeline failed for job {}: {}", jobId, e.getMessage(), e);
             job.markFailed(e.getMessage());
             jobRepository.save(job);
-        }
-    }
-
-    private void processFile(AnalysisJob job, String filePath, List<AnalysisResult> allResults) {
-        Optional<String> contentOpt = gitHubClient.getFileContent(
-                job.getRepoOwner(), job.getRepoName(), job.getCommitHash(), filePath
-        );
-
-        if (contentOpt.isEmpty()) return;
-
-        String content = contentOpt.get();
-
-        // Skip large files
-        if (content.length() > maxFileSizeKb * 1024) {
-            log.debug("Skipping large file: {}", filePath);
-            return;
-        }
-
-        String language = chunkingService.detectLanguage(filePath);
-        List<String> chunks = chunkingService.chunk(content);
-
-        // Embed and store chunks
-        for (int i = 0; i < chunks.size(); i++) {
-            String chunkContent = chunks.get(i);
-            try {
-                float[] embedding = geminiClient.createEmbedding(chunkContent);
-
-                CodeChunk codeChunk = CodeChunk.builder()
-                        .job(job)
-                        .filePath(filePath)
-                        .language(language)
-                        .content(chunkContent)
-                        .chunkIndex(i)
-                        .embedding(embedding)
-                        .build();
-
-                chunkRepository.save(codeChunk);
-            } catch (Exception e) {
-                log.warn("Embedding failed for chunk {}/{}: {}", filePath, i, e.getMessage());
-            }
-        }
-
-        // Analyze file with LLM (use full content, not chunks)
-        List<AnalysisResult> fileResults = analyzeWithRetry(job, content, filePath);
-        allResults.addAll(fileResults);
-    }
-
-    private List<AnalysisResult> analyzeWithRetry(AnalysisJob job, String content, String filePath) {
-        try {
-            return llmAnalysisService.analyzeChunks(job, content, filePath);
-        } catch (Exception e) {
-            log.warn("Analysis failed for {}, retrying in 3s: {}", filePath, e.getMessage());
-            try {
-                Thread.sleep(3000);
-            } catch (InterruptedException ie) {
-                Thread.currentThread().interrupt();
-            }
-            return llmAnalysisService.analyzeChunks(job, content, filePath);
         }
     }
 
