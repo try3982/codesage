@@ -24,7 +24,8 @@
       "Bash(xargs cat:*)",
       "Bash(curl:*)",
       "Bash(do:*)",
-      "Bash(./gradlew compileJava:*)"
+      "Bash(./gradlew compileJava:*)",
+      "Bash(do sleep:*)"
     ]
   }
 }

@@ -126,6 +126,8 @@ public class AnalysisPipelineService {
             resultRepository.saveAll(allResults);
             generateAndSaveSummary(job, allResults);
 
+            // Reload to preserve analyzedFiles updated by jobProgressService
+            job = jobRepository.findById(jobId).orElse(job);
             job.markDone();
             jobRepository.save(job);
 

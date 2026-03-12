@@ -714,7 +714,9 @@ function pollStatus() {
           document.getElementById('landing-error').classList.remove('hidden');
         }
       }
-    } catch(e) {}
+    } catch(e) {
+      console.error('pollStatus error:', e);
+    }
   }, 2000);
 }
 
