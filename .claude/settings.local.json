@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew build:*)",
+      "Bash(./gradlew bootRun:*)",
+      "Bash(lsof:*)",
+      "Bash(kill:*)",
+      "Bash(GEMINI_API_KEY=test GITHUB_API_TOKEN=test ./gradlew bootRun:*)",
+      "Bash(/Users/bwj/Desktop/개발/codesage/.gitignore:*)",
+      "Bash(psql:*)",
+      "Bash(git reset:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git:*)",
+      "Bash(railway:*)",
+      "Bash(npm install:*)",
+      "Bash(sudo npm:*)",
+      "Bash(brew install:*)",
+      "Read(//Users/bwj/.railway/**)",
+      "Read(//Users/bwj/.config/railway/**)",
+      "Bash(__NEW_LINE_6d036af50f5dc2d9__ curl:*)",
+      "Bash(__NEW_LINE_944b74ad22117632__ curl:*)",
+      "Bash(xargs cat:*)",
+      "Bash(curl:*)",
+      "Bash(do:*)"
+    ]
+  }
+}

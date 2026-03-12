@@ -1,6 +1,6 @@
 package bwj.codesage.service;
 
-import bwj.codesage.client.GeminiClient;
+import bwj.codesage.client.GroqClient;
 import bwj.codesage.domain.entity.AnalysisCategory;
 import bwj.codesage.domain.entity.AnalysisJob;
 import bwj.codesage.domain.entity.AnalysisResult;
@@ -23,7 +23,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class LlmAnalysisService {
 
-    private final GeminiClient geminiClient;
+    private final GroqClient groqClient;
     private final ObjectMapper objectMapper;
 
     private static final String SYSTEM_PROMPT = """
@@ -55,7 +55,7 @@ public class LlmAnalysisService {
             """, filePath, truncate(codeContext, 6000));
 
         try {
-            String response = geminiClient.chat(SYSTEM_PROMPT, userPrompt);
+            String response = groqClient.chat(SYSTEM_PROMPT, userPrompt);
             return parseResults(job, response);
         } catch (Exception e) {
             log.error("LLM analysis failed for {}: {}", filePath, e.getMessage());
@@ -76,7 +76,7 @@ public class LlmAnalysisService {
 
         String userPrompt = "Analyze these " + fileContents.size() + " files and return ALL issues found:\n\n" + sb;
 
-        String response = geminiClient.chat(SYSTEM_PROMPT, userPrompt);
+        String response = groqClient.chat(SYSTEM_PROMPT, userPrompt);
         return parseResults(job, response);
     }
 
@@ -113,7 +113,7 @@ public class LlmAnalysisService {
                 countByCategory(allResults, AnalysisCategory.PERFORMANCE)
         );
 
-        return geminiClient.chat(
+        return groqClient.chat(
                 "You are a technical report writer. Return only valid JSON.",
                 summaryPrompt
         );
@@ -185,7 +185,7 @@ public class LlmAnalysisService {
             """, job.getRepoOwner(), job.getRepoName(), roleName, roleName);
 
         try {
-            String response = geminiClient.chat(INTERVIEW_SYSTEM_PROMPT, userPrompt);
+            String response = groqClient.chat(INTERVIEW_SYSTEM_PROMPT, userPrompt);
             return parseInterviewQuestions(job, role, response);
         } catch (Exception e) {
             log.error("Interview question generation failed: {}", e.getMessage());
@@ -209,7 +209,7 @@ public class LlmAnalysisService {
 
                 Please review the candidate's answer.
                 """, question, modelAnswer, userAnswer);
-        return geminiClient.chat(systemPrompt, userPrompt);
+        return groqClient.chat(systemPrompt, userPrompt);
     }
 
     private List<InterviewQuestion> parseInterviewQuestions(AnalysisJob job, InterviewRole role, String jsonResponse) {

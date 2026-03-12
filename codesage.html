@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CodeSage — AI 코드 분석 & 면접 준비</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    .fade-in { animation: fadeIn 0.4s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    .pulse-dot { animation: pulseDot 1.5s ease-in-out infinite; }
+    @keyframes pulseDot { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+    .progress-bar { transition: width 0.6s ease; }
+    .tab-active { border-bottom: 2px solid #10b981; color: #10b981; }
+    details > summary { list-style: none; }
+    details > summary::-webkit-details-marker { display: none; }
+    .severity-critical { background: #fef2f2; border-left: 4px solid #ef4444; }
+    .severity-warning  { background: #fffbeb; border-left: 4px solid #f59e0b; }
+    .severity-info     { background: #eff6ff; border-left: 4px solid #3b82f6; }
+  </style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+
+<!-- ───────────────────────────────────────────
+     HEADER
+─────────────────────────────────────────── -->
+<header class="border-b border-gray-800 px-6 py-4 flex items-center justify-between">
+  <div class="flex items-center gap-3 cursor-pointer" onclick="goHome()">
+    <div class="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center text-white font-bold text-sm">CS</div>
+    <span class="font-semibold text-white">CodeSage</span>
+  </div>
+  <div id="header-job-info" class="hidden mono text-xs text-gray-500"></div>
+</header>
+
+<!-- ───────────────────────────────────────────
+     SCREEN: LANDING
+─────────────────────────────────────────── -->
+<div id="screen-landing" class="fade-in">
+  <div class="max-w-2xl mx-auto px-6 pt-24 pb-16 text-center">
+    <div class="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 rounded-full px-4 py-1.5 text-emerald-400 text-sm font-medium mb-8">
+      <span class="w-2 h-2 rounded-full bg-emerald-400 pulse-dot"></span>
+      AI 기반 코드 분석
+    </div>
+    <h1 class="text-4xl font-bold text-white mb-4 leading-tight">
+      내 프로젝트의<br/>
+      <span class="text-emerald-400">면접 질문</span>을 자동 생성
+    </h1>
+    <p class="text-gray-400 text-lg mb-12">
+      GitHub 저장소를 분석하고 코드 품질·보안 리포트와<br/>
+      역할별 면접 예상 질문 + 모범 답변을 제공합니다.
+    </p>
+
+    <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+      <label class="block text-left text-sm font-medium text-gray-300 mb-2">GitHub 저장소 URL</label>
+      <div class="flex gap-3">
+        <input
+          id="repo-url"
+          type="text"
+          placeholder="https://github.com/username/repository"
+          class="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 mono text-sm"
+          onkeydown="if(event.key==='Enter') startAnalysis()"
+        />
+        <button
+          onclick="startAnalysis()"
+          class="bg-emerald-500 hover:bg-emerald-400 text-white font-semibold px-6 py-3 rounded-xl transition-colors whitespace-nowrap"
+        >
+          분석 시작
+        </button>
+      </div>
+      <div id="landing-error" class="hidden mt-3 text-red-400 text-sm"></div>
+      <div class="mt-4 flex gap-2 flex-wrap">
+        <span class="text-xs text-gray-500">예시:</span>
+        <button onclick="setExample('https://github.com/spring-projects/spring-petclinic')" class="text-xs text-gray-500 hover:text-emerald-400 underline underline-offset-2">spring-petclinic</button>
+        <button onclick="setExample('https://github.com/microsoft/todo-app-java-on-azure')" class="text-xs text-gray-500 hover:text-emerald-400 underline underline-offset-2">todo-app-java</button>
+      </div>
+    </div>
+
+    <div class="mt-16 grid grid-cols-3 gap-6 text-left">
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+        <div class="text-2xl mb-3">🔍</div>
+        <div class="font-semibold text-white mb-1">코드 분석</div>
+        <div class="text-sm text-gray-400">아키텍처, 코드 품질, 보안, 성능 이슈를 AI가 탐지합니다.</div>
+      </div>
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+        <div class="text-2xl mb-3">💬</div>
+        <div class="font-semibold text-white mb-1">면접 질문 생성</div>
+        <div class="text-sm text-gray-400">주니어·시니어·면접관 역할별 맞춤 질문을 생성합니다.</div>
+      </div>
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+        <div class="text-2xl mb-3">✅</div>
+        <div class="font-semibold text-white mb-1">답변 리뷰</div>
+        <div class="text-sm text-gray-400">내 답변을 AI가 채점하고 모범 답변을 제시합니다.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────────────────────────────────────
+     SCREEN: LOADING
+─────────────────────────────────────────── -->
+<div id="screen-loading" class="hidden fade-in">
+  <div class="max-w-xl mx-auto px-6 pt-24 text-center">
+    <div class="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mx-auto mb-6">
+      <svg class="w-8 h-8 text-emerald-400 animate-spin" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+      </svg>
+    </div>
+    <h2 class="text-2xl font-bold text-white mb-2">분석 중...</h2>
+    <p id="loading-repo" class="text-gray-400 mono text-sm mb-8"></p>
+
+    <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-left">
+      <div class="flex justify-between items-center mb-3">
+        <span class="text-sm font-medium text-gray-300">진행률</span>
+        <span id="loading-percent" class="text-sm font-semibold text-emerald-400 mono">0%</span>
+      </div>
+      <div class="w-full bg-gray-800 rounded-full h-2 mb-4">
+        <div id="loading-bar" class="bg-emerald-500 h-2 rounded-full progress-bar" style="width:0%"></div>
+      </div>
+      <div class="flex justify-between text-xs text-gray-500">
+        <span id="loading-files">파일 분석 준비 중</span>
+        <span id="loading-count"></span>
+      </div>
+      <div id="loading-current" class="mt-3 text-xs text-gray-600 mono truncate"></div>
+    </div>
+
+    <div class="mt-6 bg-gray-900/50 border border-gray-800 rounded-xl p-4 text-sm text-gray-500">
+      Gemini AI가 코드를 읽고 있습니다. 파일 수에 따라 1~5분 소요됩니다.
+    </div>
+  </div>
+</div>
+
+<!-- ───────────────────────────────────────────
+     SCREEN: REPORT
+─────────────────────────────────────────── -->
+<div id="screen-report" class="hidden fade-in">
+  <div class="max-w-4xl mx-auto px-6 py-8">
+
+    <!-- Summary Card -->
+    <div id="report-summary" class="bg-gray-900 border border-gray-800 rounded-2xl p-6 mb-6"></div>
+
+    <!-- Tabs -->
+    <div class="flex gap-6 border-b border-gray-800 mb-6">
+      <button onclick="showTab('issues')" id="tab-issues" class="tab-active pb-3 text-sm font-medium transition-colors">이슈 목록</button>
+      <button onclick="showTab('interview')" id="tab-interview" class="pb-3 text-sm font-medium text-gray-400 hover:text-white transition-colors">면접 준비</button>
+    </div>
+
+    <!-- Tab: Issues -->
+    <div id="tab-content-issues">
+      <div id="issues-filter" class="flex gap-2 mb-4 flex-wrap"></div>
+      <div id="issues-list" class="space-y-3"></div>
+    </div>
+
+    <!-- Tab: Interview -->
+    <div id="tab-content-interview" class="hidden">
+      <!-- Role Selector -->
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-6">
+        <p class="text-sm font-medium text-gray-300 mb-3">면접 역할 선택</p>
+        <div class="flex gap-3">
+          <button onclick="selectRole('JUNIOR')" id="role-JUNIOR" class="role-btn flex-1 border rounded-xl py-3 text-sm font-medium transition-all border-emerald-500 bg-emerald-500/10 text-emerald-400">
+            👨‍💻 주니어
+          </button>
+          <button onclick="selectRole('SENIOR')" id="role-SENIOR" class="role-btn flex-1 border rounded-xl py-3 text-sm font-medium transition-all border-gray-700 text-gray-400 hover:border-gray-500">
+            🧑‍💼 시니어
+          </button>
+          <button onclick="selectRole('INTERVIEWER')" id="role-INTERVIEWER" class="role-btn flex-1 border rounded-xl py-3 text-sm font-medium transition-all border-gray-700 text-gray-400 hover:border-gray-500">
+            🎯 면접관
+          </button>
+        </div>
+        <button onclick="generateQuestions()" id="btn-generate" class="mt-4 w-full bg-emerald-500 hover:bg-emerald-400 text-white font-semibold py-3 rounded-xl transition-colors text-sm">
+          면접 질문 생성
+        </button>
+        <div id="interview-error" class="hidden mt-3 text-red-400 text-sm text-center"></div>
+      </div>
+
+      <!-- Questions List -->
+      <div id="questions-loading" class="hidden text-center py-12 text-gray-400">
+        <svg class="w-8 h-8 animate-spin mx-auto mb-3 text-emerald-400" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+        </svg>
+        질문 생성 중...
+      </div>
+      <div id="questions-list" class="space-y-4"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────────────────────────────────────
+     JAVASCRIPT
+─────────────────────────────────────────── -->
+<script>
+// ── 설정 ──────────────────────────────────────
+// Railway 배포 후 아래 URL을 실제 도메인으로 변경하세요.
+const API_BASE = 'http://localhost:8080';
+
+// ── 상태 ──────────────────────────────────────
+let state = {
+  jobId: null,
+  repoUrl: null,
+  pollTimer: null,
+  results: [],
+  summary: null,
+  selectedRole: 'JUNIOR',
+  activeFilter: 'ALL',
+};
+
+// ── 화면 전환 ─────────────────────────────────
+function showScreen(name) {
+  ['landing','loading','report'].forEach(s => {
+    const el = document.getElementById('screen-' + s);
+    if (s === name) { el.classList.remove('hidden'); el.classList.add('fade-in'); }
+    else el.classList.add('hidden');
+  });
+}
+
+function goHome() {
+  clearInterval(state.pollTimer);
+  state = { jobId:null, repoUrl:null, pollTimer:null, results:[], summary:null, selectedRole:'JUNIOR', activeFilter:'ALL' };
+  document.getElementById('header-job-info').classList.add('hidden');
+  document.getElementById('repo-url').value = '';
+  showScreen('landing');
+}
+
+function setExample(url) {
+  document.getElementById('repo-url').value = url;
+}
+
+// ── 분석 시작 ─────────────────────────────────
+async function startAnalysis() {
+  const url = document.getElementById('repo-url').value.trim();
+  const errEl = document.getElementById('landing-error');
+  errEl.classList.add('hidden');
+
+  if (!url || !url.includes('github.com')) {
+    errEl.textContent = 'GitHub URL을 올바르게 입력해주세요.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  try {
+    const res = await api('POST', '/api/analyses', { repoUrl: url });
+    state.jobId = res.id;
+    state.repoUrl = url;
+
+    const repoName = url.replace('https://github.com/', '');
+    document.getElementById('loading-repo').textContent = repoName;
+    document.getElementById('header-job-info').textContent = repoName;
+    document.getElementById('header-job-info').classList.remove('hidden');
+
+    showScreen('loading');
+    pollStatus();
+  } catch(e) {
+    errEl.textContent = e.message || '분석 시작에 실패했습니다.';
+    errEl.classList.remove('hidden');
+  }
+}
+
+// ── 상태 폴링 ─────────────────────────────────
+function pollStatus() {
+  state.pollTimer = setInterval(async () => {
+    try {
+      const job = await api('GET', `/api/analyses/${state.jobId}`);
+      updateLoadingUI(job);
+      if (job.status === 'DONE') {
+        clearInterval(state.pollTimer);
+        await loadReport();
+      } else if (job.status === 'FAILED') {
+        clearInterval(state.pollTimer);
+        showScreen('landing');
+        document.getElementById('landing-error').textContent = '분석에 실패했습니다: ' + (job.errorMessage || '알 수 없는 오류');
+        document.getElementById('landing-error').classList.remove('hidden');
+      }
+    } catch(e) { /* 재시도 */ }
+  }, 2000);
+}
+
+function updateLoadingUI(job) {
+  const pct = job.progressPercent ?? 0;
+  document.getElementById('loading-bar').style.width = pct + '%';
+  document.getElementById('loading-percent').textContent = pct + '%';
+  if (job.totalFiles) {
+    document.getElementById('loading-files').textContent = `${job.analyzedFiles ?? 0} / ${job.totalFiles} 파일 분석`;
+    document.getElementById('loading-count').textContent = job.skippedFiles ? `${job.skippedFiles}개 건너뜀` : '';
+  }
+  if (job.currentFile) {
+    document.getElementById('loading-current').textContent = '📄 ' + job.currentFile;
+  }
+}
+
+// ── 리포트 로드 ────────────────────────────────
+async function loadReport() {
+  const [results, summary] = await Promise.allSettled([
+    api('GET', `/api/analyses/${state.jobId}/results`),
+    api('GET', `/api/analyses/${state.jobId}/summary`),
+  ]);
+
+  state.results = results.status === 'fulfilled' ? results.value : [];
+  state.summary = summary.status === 'fulfilled' ? summary.value : null;
+
+  renderSummary();
+  renderIssues();
+  showScreen('report');
+}
+
+// ── 요약 렌더링 ────────────────────────────────
+function renderSummary() {
+  const s = state.summary;
+  const results = state.results;
+  const critical = results.filter(r => r.severity === 'CRITICAL').length;
+  const warning  = results.filter(r => r.severity === 'WARNING').length;
+  const info     = results.filter(r => r.severity === 'INFO').length;
+  const score    = s?.overallScore ?? null;
+
+  let techStack = '';
+  if (s?.techStack) {
+    try {
+      const arr = JSON.parse(s.techStack);
+      techStack = arr.map(t => `<span class="bg-gray-800 text-gray-300 text-xs px-2 py-1 rounded-md">${t}</span>`).join('');
+    } catch { techStack = `<span class="bg-gray-800 text-gray-300 text-xs px-2 py-1 rounded-md">${s.techStack}</span>`; }
+  }
+
+  const repoName = (state.repoUrl || '').replace('https://github.com/', '');
+
+  document.getElementById('report-summary').innerHTML = `
+    <div class="flex items-start justify-between mb-5">
+      <div>
+        <h2 class="text-xl font-bold text-white mb-1">${repoName}</h2>
+        <div class="flex gap-2 flex-wrap">${techStack}</div>
+      </div>
+      ${score !== null ? `
+      <div class="text-center">
+        <div class="text-4xl font-bold ${score >= 70 ? 'text-emerald-400' : score >= 40 ? 'text-yellow-400' : 'text-red-400'}">${score}</div>
+        <div class="text-xs text-gray-500 mt-1">전체 점수</div>
+      </div>` : ''}
+    </div>
+    <div class="grid grid-cols-3 gap-3 mb-5">
+      <div class="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-center">
+        <div class="text-2xl font-bold text-red-400">${critical}</div>
+        <div class="text-xs text-red-400/70 mt-1">CRITICAL</div>
+      </div>
+      <div class="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 text-center">
+        <div class="text-2xl font-bold text-yellow-400">${warning}</div>
+        <div class="text-xs text-yellow-400/70 mt-1">WARNING</div>
+      </div>
+      <div class="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 text-center">
+        <div class="text-2xl font-bold text-blue-400">${info}</div>
+        <div class="text-xs text-blue-400/70 mt-1">INFO</div>
+      </div>
+    </div>
+    ${s?.architectureSummary ? `
+    <div class="space-y-2 text-sm text-gray-400">
+      ${s.architectureSummary ? `<p><span class="text-gray-300 font-medium">아키텍처:</span> ${s.architectureSummary}</p>` : ''}
+      ${s.codeQualitySummary ? `<p><span class="text-gray-300 font-medium">코드 품질:</span> ${s.codeQualitySummary}</p>` : ''}
+      ${s.securitySummary    ? `<p><span class="text-gray-300 font-medium">보안:</span> ${s.securitySummary}</p>` : ''}
+      ${s.performanceSummary ? `<p><span class="text-gray-300 font-medium">성능:</span> ${s.performanceSummary}</p>` : ''}
+    </div>` : '<p class="text-sm text-gray-500">요약 정보를 불러오는 중...</p>'}
+  `;
+}
+
+// ── 이슈 렌더링 ────────────────────────────────
+function renderIssues(filter) {
+  if (filter) state.activeFilter = filter;
+  const f = state.activeFilter;
+
+  // Filter buttons
+  const cats = ['ALL', 'CRITICAL', 'WARNING', 'INFO', 'ARCHITECTURE', 'CODE_QUALITY', 'SECURITY', 'PERFORMANCE'];
+  const counts = {};
+  cats.forEach(c => {
+    counts[c] = c === 'ALL' ? state.results.length
+      : state.results.filter(r => r.severity === c || r.category === c).length;
+  });
+  document.getElementById('issues-filter').innerHTML = cats
+    .filter(c => c === 'ALL' || counts[c] > 0)
+    .map(c => `
+      <button onclick="renderIssues('${c}')"
+        class="text-xs px-3 py-1.5 rounded-lg border transition-colors ${f===c
+          ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
+          : 'border-gray-700 text-gray-400 hover:border-gray-500'}">
+        ${c === 'ALL' ? '전체' : c} ${counts[c] > 0 ? `(${counts[c]})` : ''}
+      </button>`).join('');
+
+  const filtered = f === 'ALL' ? state.results
+    : state.results.filter(r => r.severity === f || r.category === f);
+
+  if (filtered.length === 0) {
+    document.getElementById('issues-list').innerHTML = '<p class="text-center text-gray-500 py-12">이슈가 없습니다.</p>';
+    return;
+  }
+
+  document.getElementById('issues-list').innerHTML = filtered.map(issue => `
+    <details class="severity-${issue.severity.toLowerCase()} rounded-xl overflow-hidden group">
+      <summary class="px-5 py-4 cursor-pointer flex items-start gap-3 select-none">
+        <span class="mt-0.5 flex-shrink-0 ${severityColor(issue.severity)} text-xs font-bold px-2 py-0.5 rounded">${issue.severity}</span>
+        <div class="flex-1 min-w-0">
+          <div class="font-medium text-gray-900 text-sm">${escHtml(issue.title)}</div>
+          ${issue.filePath ? `<div class="mono text-xs text-gray-500 mt-0.5 truncate">${escHtml(issue.filePath)}${issue.lineNumber ? ':'+issue.lineNumber : ''}</div>` : ''}
+        </div>
+        <span class="text-xs text-gray-400 flex-shrink-0 mt-0.5">${categoryLabel(issue.category)}</span>
+        <svg class="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5 group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+      </summary>
+      <div class="px-5 pb-4 pt-1 space-y-2">
+        <p class="text-sm text-gray-700">${escHtml(issue.description || '')}</p>
+        ${issue.suggestion ? `
+        <div class="bg-white/60 rounded-lg p-3 mt-2">
+          <div class="text-xs font-semibold text-gray-500 mb-1">💡 개선 제안</div>
+          <p class="text-sm text-gray-700">${escHtml(issue.suggestion)}</p>
+        </div>` : ''}
+      </div>
+    </details>
+  `).join('');
+}
+
+// ── 탭 전환 ───────────────────────────────────
+function showTab(name) {
+  ['issues','interview'].forEach(t => {
+    document.getElementById('tab-content-' + t).classList.toggle('hidden', t !== name);
+    const btn = document.getElementById('tab-' + t);
+    if (t === name) btn.classList.add('tab-active');
+    else { btn.classList.remove('tab-active'); btn.classList.add('text-gray-400'); }
+  });
+}
+
+// ── 면접 역할 선택 ────────────────────────────
+function selectRole(role) {
+  state.selectedRole = role;
+  ['JUNIOR','SENIOR','INTERVIEWER'].forEach(r => {
+    const btn = document.getElementById('role-' + r);
+    if (r === role) {
+      btn.className = 'role-btn flex-1 border rounded-xl py-3 text-sm font-medium transition-all border-emerald-500 bg-emerald-500/10 text-emerald-400';
+    } else {
+      btn.className = 'role-btn flex-1 border rounded-xl py-3 text-sm font-medium transition-all border-gray-700 text-gray-400 hover:border-gray-500';
+    }
+  });
+  // 역할 변경 시 기존 질문 초기화
+  document.getElementById('questions-list').innerHTML = '';
+}
+
+// ── 면접 질문 생성 ────────────────────────────
+async function generateQuestions() {
+  const btn = document.getElementById('btn-generate');
+  const errEl = document.getElementById('interview-error');
+  errEl.classList.add('hidden');
+  btn.disabled = true;
+  btn.textContent = '생성 중...';
+  document.getElementById('questions-loading').classList.remove('hidden');
+  document.getElementById('questions-list').innerHTML = '';
+
+  try {
+    const questions = await api('POST', `/api/analyses/${state.jobId}/interview/generate`, { role: state.selectedRole });
+    renderQuestions(questions);
+  } catch(e) {
+    errEl.textContent = e.message || '질문 생성에 실패했습니다.';
+    errEl.classList.remove('hidden');
+  } finally {
+    document.getElementById('questions-loading').classList.add('hidden');
+    btn.disabled = false;
+    btn.textContent = '면접 질문 생성';
+  }
+}
+
+// ── 질문 렌더링 ────────────────────────────────
+function renderQuestions(questions) {
+  if (!questions || questions.length === 0) {
+    document.getElementById('questions-list').innerHTML = '<p class="text-center text-gray-500 py-12">생성된 질문이 없습니다.</p>';
+    return;
+  }
+  document.getElementById('questions-list').innerHTML = questions.map((q, i) => `
+    <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden" id="q-card-${q.id}">
+      <div class="p-5">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="text-xs bg-gray-800 text-gray-400 px-2 py-1 rounded mono">${questionTypeLabel(q.type)}</span>
+          <span class="text-xs text-gray-500">${'⭐'.repeat(q.difficulty)}</span>
+          <span class="text-xs text-gray-600 ml-auto">${escHtml(q.focus || '')}</span>
+        </div>
+        <p class="text-white font-medium text-sm leading-relaxed mb-4">${escHtml(q.question)}</p>
+
+        <!-- 답변 입력 -->
+        <textarea
+          id="answer-${q.id}"
+          placeholder="답변을 입력하세요... (비워두면 모범 답변만 확인)"
+          class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 resize-none"
+          rows="3"
+        ></textarea>
+        <button
+          onclick="submitReview('${q.id}')"
+          id="btn-review-${q.id}"
+          class="mt-3 bg-gray-800 hover:bg-emerald-500/20 border border-gray-700 hover:border-emerald-500/50 text-gray-300 hover:text-emerald-400 text-sm font-medium px-4 py-2 rounded-lg transition-all"
+        >
+          AI 리뷰 받기
+        </button>
+      </div>
+
+      <!-- 리뷰 결과 -->
+      <div id="review-${q.id}" class="hidden border-t border-gray-800 p-5 bg-gray-900/50"></div>
+
+      <!-- 모범 답변 -->
+      <details class="border-t border-gray-800">
+        <summary class="px-5 py-3 cursor-pointer text-xs text-gray-500 hover:text-gray-300 flex items-center gap-2 select-none">
+          <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+          모범 답변 보기
+        </summary>
+        <div class="px-5 pb-5 pt-3 space-y-3">
+          <p class="text-sm text-gray-300 leading-relaxed">${escHtml(q.modelAnswer || '')}</p>
+          ${q.whyBest ? `<p class="text-xs text-gray-500 italic">${escHtml(q.whyBest)}</p>` : ''}
+        </div>
+      </details>
+    </div>
+  `).join('');
+}
+
+// ── 답변 리뷰 제출 ────────────────────────────
+async function submitReview(questionId) {
+  const userAnswer = document.getElementById(`answer-${questionId}`).value.trim();
+  const btn = document.getElementById(`btn-review-${questionId}`);
+  const reviewEl = document.getElementById(`review-${questionId}`);
+
+  btn.disabled = true;
+  btn.textContent = '리뷰 중...';
+
+  try {
+    const review = await api('POST', `/api/analyses/${state.jobId}/interview/${questionId}/review`, { userAnswer });
+    renderReview(questionId, review);
+    reviewEl.classList.remove('hidden');
+  } catch(e) {
+    reviewEl.innerHTML = `<p class="text-sm text-red-400">${e.message || '리뷰 실패'}</p>`;
+    reviewEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'AI 리뷰 받기';
+  }
+}
+
+function renderReview(questionId, review) {
+  const reviewEl = document.getElementById(`review-${questionId}`);
+  const score = review.score;
+  const scoreColor = score >= 70 ? 'text-emerald-400' : score >= 40 ? 'text-yellow-400' : 'text-red-400';
+
+  let improvementsHtml = '';
+  if (review.improvements && review.improvements.length) {
+    improvementsHtml = `
+      <div class="mt-3">
+        <div class="text-xs font-semibold text-gray-400 mb-2">개선 포인트</div>
+        <ul class="space-y-1">
+          ${review.improvements.map(imp => `<li class="text-sm text-gray-300 flex gap-2"><span class="text-yellow-400 flex-shrink-0">→</span>${escHtml(imp)}</li>`).join('')}
+        </ul>
+      </div>`;
+  }
+
+  reviewEl.innerHTML = `
+    <div class="flex items-center gap-3 mb-3">
+      ${score !== null && score !== undefined ? `
+      <div class="text-center">
+        <div class="text-3xl font-bold ${scoreColor}">${score}</div>
+        <div class="text-xs text-gray-500">/ 100</div>
+      </div>
+      <div class="h-10 w-px bg-gray-700"></div>` : ''}
+      <div>
+        <div class="text-sm font-medium text-white">${escHtml(review.scoreLabel || '리뷰 완료')}</div>
+      </div>
+    </div>
+    ${improvementsHtml}
+    ${review.bestAnswer ? `
+    <div class="mt-4 bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-4">
+      <div class="text-xs font-semibold text-emerald-400 mb-2">✨ 모범 답변 (AI 추천)</div>
+      <p class="text-sm text-gray-300 leading-relaxed">${escHtml(review.bestAnswer)}</p>
+      ${review.whyBest ? `<p class="text-xs text-gray-500 mt-2 italic">${escHtml(review.whyBest)}</p>` : ''}
+    </div>` : ''}
+  `;
+}
+
+// ── API 헬퍼 ──────────────────────────────────
+async function api(method, path, body) {
+  const res = await fetch(API_BASE + path, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try { const err = await res.json(); msg = err.message || msg; } catch {}
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
+// ── 유틸 ──────────────────────────────────────
+function escHtml(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function severityColor(s) {
+  return { CRITICAL: 'bg-red-100 text-red-700', WARNING: 'bg-yellow-100 text-yellow-700', INFO: 'bg-blue-100 text-blue-700' }[s] || 'bg-gray-100 text-gray-700';
+}
+
+function categoryLabel(c) {
+  return { ARCHITECTURE: '🏗 아키텍처', CODE_QUALITY: '✏️ 코드품질', SECURITY: '🔒 보안', PERFORMANCE: '⚡ 성능' }[c] || c;
+}
+
+function questionTypeLabel(t) {
+  return { ARCH: '아키텍처', CODE: '코드', SEC: '보안', PERF: '성능', DESIGN: '설계' }[t] || t;
+}
+</script>
+</body>
+</html>

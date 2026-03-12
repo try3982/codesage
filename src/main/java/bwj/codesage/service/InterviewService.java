@@ -1,6 +1,6 @@
 package bwj.codesage.service;
 
-import bwj.codesage.client.GeminiClient;
+import bwj.codesage.client.GroqClient;
 import bwj.codesage.exception.JobNotFoundException;
 import bwj.codesage.domain.entity.AnalysisJob;
 import bwj.codesage.domain.entity.AnalysisResult;
@@ -35,12 +35,52 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class InterviewService {
 
+    private static final String INTERVIEW_SYSTEM_PROMPT = """
+            You are a senior technical interviewer.
+            Based on the repository context provided, generate key interview questions.
+            Return ONLY a valid JSON array. No explanation, no markdown.
+
+            Each item must have:
+            {
+              "type": "ARCH" | "CODE" | "SEC" | "PERF" | "DESIGN",
+              "difficulty": 1 to 5 (integer),
+              "question": "the interview question",
+              "focus": "what skill/knowledge this tests (max 200 chars)",
+              "modelAnswer": "ideal answer (3-5 sentences)",
+              "whyBest": "why this answer demonstrates strong understanding"
+            }
+
+            Tailor difficulty and focus to the role:
+            - JUNIOR: basic implementation reasoning, technology choices
+            - SENIOR: architecture decisions, trade-offs, scalability
+            - INTERVIEWER: sharp, candidate-probing questions that reveal depth
+
+            Generate between 5 and 15 questions depending on the complexity and size of the repository.
+            Simple repositories: 5-7 questions. Medium: 8-11 questions. Large/complex: 12-15 questions.
+            """;
+
+    private static final String REVIEW_SYSTEM_PROMPT = """
+            You are a strict but constructive technical interviewer reviewing a candidate's answer.
+            Return ONLY a valid JSON object. No explanation, no markdown.
+
+            {
+              "score": 1 to 100 (integer, omit or set null if userAnswer is empty/too short),
+              "scoreLabel": "one-line evaluation in Korean",
+              "improvements": ["improvement point 1", "improvement point 2"],
+              "bestAnswer": "the ideal answer a top candidate would give (3-5 sentences)",
+              "whyBest": "why this answer demonstrates strong understanding (2-3 sentences)"
+            }
+
+            If the userAnswer is empty or fewer than 20 characters, skip score/scoreLabel/improvements
+            and return only bestAnswer and whyBest.
+            """;
+
     private final AnalysisJobRepository jobRepository;
     private final AnalysisResultRepository resultRepository;
     private final AnalysisSummaryRepository summaryRepository;
     private final InterviewQuestionRepository questionRepository;
     private final AnswerReviewRepository answerReviewRepository;
-    private final GeminiClient geminiClient;
+    private final GroqClient groqClient;
     private final ObjectMapper objectMapper;
 
     @Transactional
@@ -68,7 +108,7 @@ public class InterviewService {
         String contextJson = buildContextJson(job, summary, topResults, interviewRole);
         log.info("Generating interview questions for job={} role={}", jobId, interviewRole);
 
-        String response = geminiClient.generateInterviewQuestions(contextJson);
+        String response = groqClient.chat(INTERVIEW_SYSTEM_PROMPT, "Repository context:\n" + contextJson);
         List<InterviewQuestion> questions = parseAndSave(job, interviewRole, response);
 
         return questions.stream().map(InterviewQuestionResponse::from).toList();
@@ -91,7 +131,9 @@ public class InterviewService {
         AnalysisSummary summary = summaryRepository.findByJob(job).orElse(null);
         String repoContext = buildRepoContext(job, summary);
 
-        String jsonResponse = geminiClient.reviewAnswer(question.getQuestion(), userAnswer, repoContext);
+        String jsonResponse = groqClient.chat(REVIEW_SYSTEM_PROMPT,
+                String.format("Repository context: %s\n\nInterview question: %s\n\nCandidate's answer: %s",
+                        repoContext, question.getQuestion(), userAnswer != null ? userAnswer : "(no answer provided)"));
         AnswerReview review = parseAndSaveReview(question, userAnswer, jsonResponse);
         return AnswerReviewResponse.from(review);
     }
