@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.stream.Collectors;
 
+import java.util.stream.Collectors;
+
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -37,12 +39,6 @@ public class GlobalExceptionHandler {
                 .map(FieldError::getDefaultMessage)
                 .collect(Collectors.joining(", "));
         return error(HttpStatus.BAD_REQUEST, message, req);
-    }
-
-    @ExceptionHandler(GeminiException.class)
-    public ResponseEntity<ErrorResponse> handleGeminiException(GeminiException e, HttpServletRequest req) {
-        log.error("Gemini API error: {}", e.getMessage());
-        return error(HttpStatus.SERVICE_UNAVAILABLE, "AI service temporarily unavailable", req);
     }
 
     @ExceptionHandler(Exception.class)

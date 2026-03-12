@@ -23,7 +23,8 @@
       "Bash(__NEW_LINE_944b74ad22117632__ curl:*)",
       "Bash(xargs cat:*)",
       "Bash(curl:*)",
-      "Bash(do:*)"
+      "Bash(do:*)",
+      "Bash(./gradlew compileJava:*)"
     ]
   }
 }
