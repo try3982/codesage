@@ -1,0 +1,32 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: codesage
+      POSTGRES_USER: wonjin
+      POSTGRES_PASSWORD: wonjin
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/codesage
+      SPRING_DATASOURCE_USERNAME: wonjin
+      SPRING_DATASOURCE_PASSWORD: wonjin
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GITHUB_API_TOKEN: ${GITHUB_API_TOKEN:-}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      GEMINI_BASE_URL: https://generativelanguage.googleapis.com/v1beta
+      GEMINI_EMBEDDING_MODEL: text-embedding-004
+      GEMINI_CHAT_MODEL: gemini-2.0-flash
+      SPRING_AUTOCONFIGURE_EXCLUDE: org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration
+
+volumes:
+  postgres_data:

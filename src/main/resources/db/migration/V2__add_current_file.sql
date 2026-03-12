@@ -1,0 +1,1 @@
+ALTER TABLE analysis_jobs ADD COLUMN IF NOT EXISTS current_file VARCHAR(500);
