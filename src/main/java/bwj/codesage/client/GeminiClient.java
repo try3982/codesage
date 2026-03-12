@@ -20,21 +20,24 @@ public class GeminiClient {
     private final WebClient webClient;
     private final String apiKey;
     private final String baseUrl;
+    private final String embeddingBaseUrl;
     private final String embeddingModel;
     private final String chatModel;
 
-    private static final int[] RETRY_DELAYS_MS = {4000, 8000, 16000}; // exponential backoff
+    private static final int[] RETRY_DELAYS_MS = {4000, 8000, 16000};
 
     public GeminiClient(
             WebClient.Builder webClientBuilder,
             @Value("${gemini.api-key}") String apiKey,
             @Value("${gemini.base-url}") String baseUrl,
+            @Value("${gemini.embedding-base-url}") String embeddingBaseUrl,
             @Value("${gemini.embedding-model}") String embeddingModel,
             @Value("${gemini.chat-model}") String chatModel
     ) {
         this.webClient = webClientBuilder.build();
         this.apiKey = apiKey;
         this.baseUrl = baseUrl;
+        this.embeddingBaseUrl = embeddingBaseUrl;
         this.embeddingModel = embeddingModel;
         this.chatModel = chatModel;
     }
@@ -57,7 +60,7 @@ public class GeminiClient {
                 "model", "models/" + embeddingModel,
                 "content", Map.of("parts", List.of(Map.of("text", text)))
         );
-        String uri = baseUrl + "/models/" + embeddingModel + ":embedContent?key=" + apiKey;
+        String uri = embeddingBaseUrl + "/models/" + embeddingModel + ":embedContent?key=" + apiKey;
 
         try {
             var response = webClient.post()
