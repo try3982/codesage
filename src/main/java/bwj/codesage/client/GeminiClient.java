@@ -24,7 +24,7 @@ public class GeminiClient {
     private final String embeddingModel;
     private final String chatModel;
 
-    private static final int[] RETRY_DELAYS_MS = {4000, 8000, 16000};
+    private static final int[] RETRY_DELAYS_MS = {10000, 30000, 60000};
 
     public GeminiClient(
             WebClient.Builder webClientBuilder,

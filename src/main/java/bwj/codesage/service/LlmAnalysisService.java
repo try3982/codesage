@@ -71,7 +71,7 @@ public class LlmAnalysisService {
         StringBuilder sb = new StringBuilder();
         for (String[] fc : fileContents) {
             sb.append("=== FILE: ").append(fc[0]).append(" ===\n");
-            sb.append(truncate(fc[1], 3000)).append("\n\n");
+            sb.append(truncate(fc[1], 1500)).append("\n\n");
         }
 
         String userPrompt = "Analyze these " + fileContents.size() + " files and return ALL issues found:\n\n" + sb;
