@@ -126,7 +126,7 @@ public class GeminiClient {
                 ),
                 "generationConfig", Map.of(
                         "temperature", 0.2,
-                        "maxOutputTokens", 2000
+                        "maxOutputTokens", 4000
                 )
         );
         String uri = baseUrl + "/models/" + chatModel + ":generateContent?key=" + apiKey;
@@ -156,7 +156,7 @@ public class GeminiClient {
 
     private static final String INTERVIEW_SYSTEM_PROMPT = """
             You are a senior technical interviewer.
-            Based on the repository context provided, generate exactly 5 interview questions.
+            Based on the repository context provided, generate key interview questions.
             Return ONLY a valid JSON array. No explanation, no markdown.
 
             Each item must have:
@@ -174,7 +174,10 @@ public class GeminiClient {
             - SENIOR: architecture decisions, trade-offs, scalability
             - INTERVIEWER: sharp, candidate-probing questions that reveal depth
 
-            Generate 5 questions: 2 with difficulty 2, 2 with difficulty 3, 1 with difficulty 4.
+            Generate between 5 and 15 questions depending on the complexity and size of the repository.
+            Simple repositories: 5-7 questions. Medium: 8-11 questions. Large/complex: 12-15 questions.
+            Cover all relevant types (ARCH, CODE, SEC, PERF, DESIGN) proportional to the codebase.
+            Mix difficulty levels naturally: mostly 2-3, some 4, occasionally 5 for senior/interviewer roles.
             """;
 
     /**

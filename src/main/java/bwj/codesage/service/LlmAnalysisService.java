@@ -76,13 +76,8 @@ public class LlmAnalysisService {
 
         String userPrompt = "Analyze these " + fileContents.size() + " files and return ALL issues found:\n\n" + sb;
 
-        try {
-            String response = geminiClient.chat(SYSTEM_PROMPT, userPrompt);
-            return parseResults(job, response);
-        } catch (Exception e) {
-            log.error("Batch LLM analysis failed: {}", e.getMessage());
-            return List.of();
-        }
+        String response = geminiClient.chat(SYSTEM_PROMPT, userPrompt);
+        return parseResults(job, response);
     }
 
     public String generateSummary(AnalysisJob job, List<AnalysisResult> allResults) {
@@ -173,7 +168,10 @@ public class LlmAnalysisService {
           "whyBest": "why this answer demonstrates strong understanding"
         }
 
-        Generate 5 questions total: 2 with difficulty 2, 2 with difficulty 3, 1 with difficulty 4.
+        Generate between 5 and 15 questions depending on the complexity and size of the repository.
+        Simple repositories: 5-7 questions. Medium: 8-11 questions. Large/complex: 12-15 questions.
+        Cover all relevant types (ARCH, CODE, SEC, PERF, DESIGN) proportional to the codebase.
+        Mix difficulty levels naturally: mostly 2-3, some 4, occasionally 5 for senior/interviewer roles.
         """;
 
     public List<InterviewQuestion> generateInterviewQuestions(AnalysisJob job, InterviewRole role) {
